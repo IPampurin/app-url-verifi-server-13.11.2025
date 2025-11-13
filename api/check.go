@@ -9,7 +9,7 @@ import (
 	"verifi-server/data"
 )
 
-// checPostHandler принимает запрос с адресами и синхронно собирает статусы
+// checkPostHandler принимает запрос с адресами и синхронно собирает статусы
 func checkPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req data.Request
