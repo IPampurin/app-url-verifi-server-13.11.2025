@@ -5,6 +5,7 @@ import (
 
 	"net/http"
 	"os"
+	"verifi-server/api"
 )
 
 func Run() error {
@@ -13,6 +14,8 @@ func Run() error {
 	if !ok {
 		port = "8080"
 	}
+
+	api.Init()
 
 	return http.ListenAndServe(fmt.Sprintf(":%v", port), nil)
 }
