@@ -8,10 +8,10 @@ func checkHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
-		checPostkHandler(w, r)
+		checkPostHandler(w, r)
 
 	default:
-		// WriterJSON(w, http.StatusMethodNotAllowed, "error")
+		WriterJSON(w, http.StatusMethodNotAllowed, "error")
 	}
 
 }
