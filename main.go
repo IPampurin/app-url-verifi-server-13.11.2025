@@ -21,9 +21,12 @@ func main() {
 		port = "8080"
 	}
 
+	// создаем экземпляр сервера
+	srv := server.NewServer()
+
 	// запускаем сервер в отдельной горутине
 	go func() {
-		err := server.Run(port)
+		err := srv.Run(port)
 		if err != nil {
 			fmt.Printf("Ошибка запуска сервера: %v\n", err)
 			return
@@ -34,5 +37,5 @@ func main() {
 	cli.ShowHelp(port)
 
 	// запускаем CLI в основном потоке
-	cli.RunCLI(port)
+	cli.RunCLI(port, srv)
 }

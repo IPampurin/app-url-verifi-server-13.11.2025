@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"verifi-server/server"
 )
 
 // ShowHelp выводит справку по приложению
@@ -26,7 +28,7 @@ func ShowHelp(port string) {
 }
 
 // RunCLI позволяет управлять приложением из консоли
-func RunCLI(port string) {
+func RunCLI(port string, srv *server.Server) {
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -42,7 +44,12 @@ func RunCLI(port string) {
 		case "stop":
 			fmt.Println("👋 Останавливаем сервер...")
 
-			// TODO реализовать gracefull shutdown
+			// Graceful shutdown через метод сервера
+			if err := srv.GracefulShutdown(); err != nil {
+				fmt.Printf("Ошибка остановки: %v\n", err)
+			} else {
+				fmt.Println("👋 Сервер остановлен. Выход...")
+			}
 
 			os.Exit(0)
 
