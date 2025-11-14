@@ -7,8 +7,11 @@ import (
 	"maps"
 	"net/http"
 	"strconv"
+	"time"
 
 	"verifi-server/data"
+
+	"github.com/jung-kurt/gofpdf"
 )
 
 // reportPostHandler обрабатывает POST запрос для генерации PDF отчета
@@ -72,15 +75,62 @@ func collectReportData(linksList []int) map[string]string {
 // generatePDF создает PDF файл с отчетом
 func generatePDF(reportData map[string]string) ([]byte, error) {
 
-	var content bytes.Buffer
-	content.WriteString("Link Status Report\n")
-	content.WriteString("==================\n\n")
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
 
+	// заголовок
+	pdf.SetFont("Arial", "B", 16)
+	pdf.CellFormat(0, 10, "Link Status Report", "", 0, "C", false, 0, "")
+	pdf.Ln(12)
+
+	// информация о отчете
+	pdf.SetFont("Arial", "", 10)
+	pdf.CellFormat(0, 8, fmt.Sprintf("Generated: %s", time.Now().Format("2006-01-02 15:04:05")), "", 0, "L", false, 0, "")
+	pdf.Ln(5)
+	pdf.CellFormat(0, 8, fmt.Sprintf("Total URLs: %d", len(reportData)), "", 0, "L", false, 0, "")
+	pdf.Ln(10)
+
+	// заголовки таблицы
+	pdf.SetFont("Arial", "B", 12)
+	pdf.SetFillColor(240, 240, 240)
+	pdf.CellFormat(120, 10, "URL", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(0, 10, "Status", "1", 0, "C", true, 0, "")
+	pdf.Ln(10)
+
+	// данные
+	pdf.SetFont("Arial", "", 11)
 	for url, status := range reportData {
-		content.WriteString(fmt.Sprintf("%s: %s\n", url, status))
+		// обрезаем слишком длинные URL для лучшего отображения
+		displayURL := url
+		if len(displayURL) > 50 {
+			displayURL = displayURL[:47] + "..."
+		}
+
+		// URL
+		pdf.CellFormat(120, 8, displayURL, "1", 0, "L", false, 0, "")
+
+		// status с цветом
+		if status == data.AvailableStatus {
+			pdf.SetTextColor(0, 128, 0) // зеленый
+			pdf.CellFormat(0, 8, "Available", "1", 0, "C", false, 0, "")
+		} else {
+			pdf.SetTextColor(255, 0, 0) // красный
+			pdf.CellFormat(0, 8, "Not Available", "1", 0, "C", false, 0, "")
+		}
+
+		// возвращаем черный цвет для следующей строки
+		pdf.SetTextColor(0, 0, 0)
+		pdf.Ln(8)
 	}
 
-	return content.Bytes(), nil
+	// сохраняем в buffer
+	var buf bytes.Buffer
+	err := pdf.Output(&buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 // sendPDFResponse отправляет PDF файл в ответе

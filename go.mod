@@ -4,4 +4,7 @@ go 1.24.1
 
 replace verifi-server => ./
 
-require verifi-server v0.0.0-00010101000000-000000000000
+require (
+	github.com/jung-kurt/gofpdf v1.16.2
+	verifi-server v0.0.0-00010101000000-000000000000
+)
