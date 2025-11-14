@@ -2,17 +2,37 @@ package main
 
 import (
 	"fmt"
+	"os"
 
+	"verifi-server/cli"
 	"verifi-server/server"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
 
-	var err error
+	// вычитываем env файл
+	godotenv.Load(".env")
 
-	err = server.Run()
-	if err != nil {
-		fmt.Printf("Ошибка запуска сервера: %v\n", err)
-		return
+	// вычитываем номер порта из переменных, если есть
+	port, ok := os.LookupEnv("VERIFI_PORT")
+	if !ok {
+		port = "8080"
 	}
+
+	// запускаем сервер в отдельной горутине
+	go func() {
+		err := server.Run(port)
+		if err != nil {
+			fmt.Printf("Ошибка запуска сервера: %v\n", err)
+			return
+		}
+	}()
+
+	// показываем справку
+	cli.ShowHelp(port)
+
+	// запускаем CLI в основном потоке
+	cli.RunCLI(port)
 }

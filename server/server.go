@@ -4,16 +4,10 @@ import (
 	"fmt"
 
 	"net/http"
-	"os"
 	"verifi-server/api"
 )
 
-func Run() error {
-
-	port, ok := os.LookupEnv("VERIFI_PORT")
-	if !ok {
-		port = "8080"
-	}
+func Run(port string) error {
 
 	api.Init()
 
