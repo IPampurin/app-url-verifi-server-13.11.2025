@@ -68,6 +68,7 @@ func checkPostHandler(w http.ResponseWriter, r *http.Request) {
 	// и заканчиваем соединение
 	if server.IsShutdown() {
 		data.SaveLinksCache(req.Links)
+		WriterJSON(w, http.StatusServiceUnavailable, "сервис недоступен - повторите запрос позднее")
 		return
 	}
 

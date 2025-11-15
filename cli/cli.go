@@ -79,13 +79,18 @@ func RunCLI(port string) {
 					return
 				}
 
-				// проверяем и дообрабатываем, если остались ссылки после shutdown
+				// проверяем и дообрабатываем, если остались, ссылки после shutdown
 				if len(data.SDCache.CacheLinks) != 0 {
 					for i := range data.SDCache.CacheLinks {
 						api.CacheLinksCheck(data.SDCache.CacheLinks[i])
 					}
 					data.SDCache.CacheLinks = make([][]string, 0)
 				}
+
+				// Проверять и дообрабатывать, если остались, номера запросов после shutdown,
+				// очевидно, не имеет смысла, так как не ясно кому именно они нужны.
+				// Возможно, имеет смысл добавить/уточнить логику того, что делать
+				// с запросами по номерам при перезагрузке сервера.
 			}
 
 			fmt.Println("✅ Сервер перезапущен")

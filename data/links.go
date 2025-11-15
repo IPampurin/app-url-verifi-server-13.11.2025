@@ -28,12 +28,33 @@ var storage = &Storage{
 	nextID: 1,
 }
 
+// NumberLinksCache список номеров позапросно, переданных после команды перезагрузки или выключения
+type NumberLinksCache struct {
+	CacheNumbers [][]int
+	numbersMu    sync.Mutex
+}
+
+// NLCache экземпляр NumberLinksCache
+var NLCache = &NumberLinksCache{
+	CacheNumbers: make([][]int, 0),
+}
+
+// SaveLinksCache сохраняет набор ссылок из запроса в ShutdownCache
 func SaveLinksCache(links []string) {
 
 	SDCache.cacheMu.Lock()
 	defer SDCache.cacheMu.Unlock()
 
 	SDCache.CacheLinks = append(SDCache.CacheLinks, links)
+}
+
+// SaveNumberLinksCache сохраняет номера запросов при shutdown
+func SaveNumberLinksCache(nums []int) {
+
+	NLCache.numbersMu.Lock()
+	defer NLCache.numbersMu.Unlock()
+
+	NLCache.CacheNumbers = append(NLCache.CacheNumbers, nums)
 }
 
 // SaveResults сохраняет результаты запросов по номерам

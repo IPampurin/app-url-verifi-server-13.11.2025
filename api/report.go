@@ -47,12 +47,17 @@ func reportPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// если сервер получил команду остановки/перезагрузки
-	// записываем поступающие текущие запросы-ссылки в ShutdownCache
+	// записываем поступающие текущие запросы-номера в NumberLinksCache
 	// и заканчиваем соединение
 	if server.IsShutdown() {
-		data.SaveLinksCache(req.Links)
+		data.SaveNumberLinksCache(req.Links)
+		WriterJSON(w, http.StatusServiceUnavailable, "сервис недоступен - повторите запрос позднее")
 		return
 	}
+	// Проверять и дообрабатывать, если остались, номера запросов после shutdown,
+	// очевидно, не имеет смысла, так как не ясно кому именно они нужны.
+	// Возможно, имеет смысл добавить/уточнить логику того, что делать
+	// с запросами по номерам при перезагрузке сервера.
 
 	// собираем все данные по указанным номерам
 	allResults := collectReportData(req.Links)
