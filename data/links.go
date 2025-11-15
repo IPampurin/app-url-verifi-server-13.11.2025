@@ -1,6 +1,8 @@
 package data
 
-import "sync"
+import (
+	"sync"
+)
 
 // константы статусов на выдачу
 const (
@@ -24,6 +26,17 @@ type RequestCollection struct {
 	Links []int `json:"links_list"`
 }
 
+// ShutdownCache список ссылок позапросно, переданных после команды перезагрузки или выключения
+type ShutdownCache struct {
+	cacheLinks [][]string
+	cacheMu    sync.Mutex
+}
+
+// заведем экземпляр ShutdownCache
+var shutdownCache = &ShutdownCache{
+	cacheLinks: make([][]string, 0),
+}
+
 // Storage структура хранилища результатов
 type Storage struct {
 	data   map[int]map[string]string // map [links_num] map [{url: status}]
@@ -35,6 +48,20 @@ type Storage struct {
 var storage = &Storage{
 	data:   make(map[int]map[string]string),
 	nextID: 1,
+}
+
+func SaveLinksCache(links []string) {
+
+	shutdownCache.cacheMu.Lock()
+	defer shutdownCache.cacheMu.Unlock()
+
+	shutdownCache.cacheLinks = append(shutdownCache.cacheLinks, links)
+}
+
+// ReadLinksCache возвращает соответствующий набор ссылок из поступивших после начала Shutdown
+func ReadLinksCache(i int) []string {
+
+	return shutdownCache.cacheLinks[i]
 }
 
 // SaveResults сохраняет результаты запросов по номерам
@@ -50,7 +77,7 @@ func SaveResults(results map[string]string) int {
 	return id
 }
 
-// GetResults смотрит, что есть в хранилище
+// GetResults смотрит, что есть в хранилище по номеру
 func GetResults(id int) (map[string]string, bool) {
 
 	storage.mu.RLock()

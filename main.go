@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"verifi-server/api"
 	"verifi-server/cli"
 	"verifi-server/server"
 
@@ -12,7 +13,7 @@ import (
 
 func main() {
 
-	// вычитываем env файл
+	// вычитываем env файл, если есть
 	godotenv.Load(".env")
 
 	// вычитываем номер порта из переменных, если есть
@@ -21,21 +22,16 @@ func main() {
 		port = "8080"
 	}
 
-	// создаем экземпляр сервера
-	srv := server.NewServer()
+	// запускаем api
+	api.Init()
 
-	// запускаем сервер в отдельной горутине
-	go func() {
-		err := srv.Run(port)
-		if err != nil {
-			fmt.Printf("Ошибка запуска сервера: %v\n", err)
-			return
-		}
-	}()
+	// запускаем сервер
+	err := server.Run(port)
+	if err != nil {
+		fmt.Printf("Ошибка запуска сервера: %v\n", err)
+		return
+	}
 
-	// показываем справку
-	cli.ShowHelp(port)
-
-	// запускаем CLI в основном потоке
-	cli.RunCLI(port, srv)
+	// запускаем CLI
+	cli.RunCLI(port)
 }

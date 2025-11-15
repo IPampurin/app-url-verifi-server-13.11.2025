@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"verifi-server/data"
+	"verifi-server/server"
 )
 
 // checkPostHandler принимает запрос с адресами и синхронно собирает статусы
@@ -37,26 +38,34 @@ func checkPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// проверяем доступность каждой ссылки
-	statusLinks := make(map[string]string)
-	for _, url := range req.Links {
-		if isAvailable(url) {
-			statusLinks[url] = data.AvailableStatus
-		} else {
-			statusLinks[url] = data.NotAvailableStatus
+	if !server.IsShutdown() { // если сервер не останавливают/перезагружают
+
+		// проверяем доступность каждой ссылки
+		statusLinks := make(map[string]string)
+		for _, url := range req.Links {
+			if isAvailable(url) {
+				statusLinks[url] = data.AvailableStatus
+			} else {
+				statusLinks[url] = data.NotAvailableStatus
+			}
 		}
+
+		// сохраняем результаты и получаем номер
+		linksSetNum := data.SaveResults(statusLinks)
+
+		// формируем и возвращаем ответ
+		resp := data.ResponseLinks{
+			Links:    statusLinks,
+			LinksNum: linksSetNum,
+		}
+
+		WriterJSON(w, http.StatusOK, resp)
+
+	} else { // если сервер получил команду остановки/перезагрузки
+
+		// записываем поступающие текущие запросы-ссылки в отдельный storage
+
 	}
-
-	// сохраняем результаты и получаем номер
-	linksSetNum := data.SaveResults(statusLinks)
-
-	// формируем и возвращаем ответ
-	resp := data.ResponseLinks{
-		Links:    statusLinks,
-		LinksNum: linksSetNum,
-	}
-
-	WriterJSON(w, http.StatusOK, resp)
 }
 
 // isAvailable проверяет доступность URL
@@ -64,7 +73,7 @@ func isAvailable(url string) bool {
 
 	normalizedURL := normalizeURL(url)
 
-	// поднимаем клиента с паузой 3 секунды
+	// поднимаем клиента со временем ожидания 3 секунды
 	client := http.Client{
 		Timeout: 3 * time.Second,
 	}

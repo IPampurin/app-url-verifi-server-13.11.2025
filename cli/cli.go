@@ -9,8 +9,8 @@ import (
 	"verifi-server/server"
 )
 
-// ShowHelp выводит справку по приложению
-func ShowHelp(port string) {
+// showHelp выводит справку по приложению
+func showHelp(port string) {
 
 	fmt.Println("🚀 Link Verifier Server запущен!")
 	fmt.Printf("🌐 Сервер доступен по адресу: http://localhost:%s\n", port)
@@ -28,7 +28,14 @@ func ShowHelp(port string) {
 }
 
 // RunCLI позволяет управлять приложением из консоли
-func RunCLI(port string, srv *server.Server) {
+func RunCLI(port string) {
+
+	done := make(chan struct{}) // канал для остановки WaitForShutdownSignal
+
+	// запускаем контроль сигналов ОС
+	go server.WaitForShutdownSignal(done)
+
+	showHelp(port)
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -41,32 +48,41 @@ func RunCLI(port string, srv *server.Server) {
 		input := strings.TrimSpace(scanner.Text())
 
 		switch input {
-		case "stop":
-			fmt.Println("👋 Останавливаем сервер...")
 
-			// Graceful shutdown через метод сервера
-			if err := srv.GracefulShutdown(); err != nil {
+		case "stop": // Graceful shutdown серверу
+
+			if err := server.GracefulShutdown(); err != nil {
 				fmt.Printf("Ошибка остановки: %v\n", err)
 			} else {
-				fmt.Println("👋 Сервер остановлен. Выход...")
+				close(done)
+				fmt.Println("👋 Выходим из программы.")
 			}
 
 			os.Exit(0)
 
-		case "restart":
+		case "restart": // Graceful shutdown серверу и новый запуск
+
 			fmt.Println("🔄 Перезапуск сервера...")
 
-			// TODO добавить логику перезапуска с gracefull shutdown
+			if err := server.GracefulShutdown(); err != nil {
+				fmt.Printf("Ошибка остановки: %v\n", err)
+			} else {
+				fmt.Println("👋 Запускаем сервер.")
+				server.Run(port)
+			}
 
 			fmt.Println("✅ Сервер перезапущен")
 
 		case "status":
+
 			fmt.Printf("✅ Сервер работает на http://localhost:%s", port)
 
 		case "help":
-			ShowHelp(port)
+
+			showHelp(port)
 
 		case "":
+
 			// заигнорим пустой ввод
 
 		default:

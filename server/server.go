@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,107 +11,114 @@ import (
 	"time"
 
 	"net/http"
-	"verifi-server/api"
 )
+
+const timeout = 30 * time.Second // timeout для прерывания соединения при GracefulShutdown
 
 // Server описывает HTTP сервер и его состояние
 type Server struct {
-	httpServer *http.Server
-	mu         sync.RWMutex
-	isRunning  bool
+	httpServer *http.Server // сам сервер
+	mu         sync.RWMutex // мьютекс
+	isShutdown bool         // флаг завершения работы сервера при остановке или перезапуске
 }
 
-// NewServer создает новый экземпляр сервера
-func NewServer() *Server {
-
-	return &Server{
-		isRunning: false,
-	}
-}
+// Srv экземпляр сервера
+var Srv Server = Server{}
 
 // Run сосредотачивет логику управления сервером
-func (s *Server) Run(port string) error {
+func Run(port string) error {
 
-	s.mu.Lock()
-	if s.isRunning {
-		s.mu.Unlock()
-		return fmt.Errorf("сервер уже работает")
+	// определяем сервер
+	Srv.mu.Lock()
+	if Srv.httpServer != nil {
+		Srv.mu.Unlock()
+		return fmt.Errorf("сервер уже запущен")
 	}
-
-	api.Init()
-
-	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%s", port),
-		Handler: nil, // используем DefaultServeMux из http.HandleFunc
+	if Srv.isShutdown {
+		Srv.mu.Unlock()
+		return fmt.Errorf("сервер в процессе остановки и не может быть перезапущен")
 	}
-
-	s.isRunning = true
-	s.mu.Unlock()
+	Srv.httpServer = &http.Server{
+		Addr: fmt.Sprintf(":%s", port),
+	}
+	Srv.mu.Unlock()
 
 	// запускаем сервер в горутине
 	go func() {
-		fmt.Printf("сервер запущен на порту:%s\n", port)
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("ошибка сервера: %v\n", err)
 
-			s.mu.Lock()
-			s.isRunning = false
-			s.mu.Unlock()
+		fmt.Printf("сервер запущен на порту:%s\n", port)
+
+		err := Srv.httpServer.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			fmt.Printf("ошибка сервера: %v\n", err)
 		}
 	}()
-
-	// ждем сигналов остановки
-	s.waitForShutdownSignal()
 
 	return nil
 }
 
 // GracefulShutdown плавно останавливает сервер
-func (s *Server) GracefulShutdown() error {
+func GracefulShutdown() error {
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if !s.isRunning || s.httpServer == nil {
-		return fmt.Errorf("сервер не работает")
+	Srv.mu.Lock()
+	if Srv.isShutdown {
+		Srv.mu.Unlock()
+		return nil // уже остановлен или останавливается
 	}
+	Srv.isShutdown = true // устанавливаем флаг
+	Srv.mu.Unlock()
 
-	fmt.Println("начинаем остановку сервера...")
-
-	// даем 10 секунд на завершение текущих запросов
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// создаём контекст для принудительного обрыва соединения через разумное время
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	if err := s.httpServer.Shutdown(ctx); err != nil {
-		return fmt.Errorf("ошибка остановки сервера: %v", err)
+	fmt.Println("Начинаем остановку сервера...")
+
+	if err := Srv.httpServer.Shutdown(ctx); err != nil {
+
+		switch {
+		case errors.Is(err, context.Canceled):
+			return fmt.Errorf("сервер остановлен досрочно: контекст отменён (возможно, получен сигнал ОС)")
+
+		case errors.Is(err, context.DeadlineExceeded):
+			return fmt.Errorf("сервер не успел завершиться за %d секунд", int(timeout.Seconds()))
+
+		default:
+			// прочие ошибки (сетевые, системные)
+			return fmt.Errorf("неожиданная ошибка остановки сервера: %w", err)
+		}
 	}
 
-	s.isRunning = false
-
-	fmt.Println("...сервер корректно остановлен")
+	fmt.Println("...сервер корректно остановлен.")
 
 	return nil
 }
 
-// IsRunning проверяет запущен ли сервер
-func (s *Server) IsRunning() bool {
+// IsShutdown проверяет не останавливается ли сервер
+func IsShutdown() bool {
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	Srv.mu.RLock()
+	defer Srv.mu.RUnlock()
 
-	return s.isRunning
+	return Srv.isShutdown
 }
 
-// waitForShutdownSignal ждет сигналов остановки
-func (s *Server) waitForShutdownSignal() {
+// WaitForShutdownSignal ждет сигналов остановки ОС
+func WaitForShutdownSignal(done <-chan struct{}) {
 
+	// регистрируем канал отмены работы по Ctrl + C
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	defer close(stop)
 
-	<-stop
-	fmt.Println("получен сигнал остановки.")
+	select {
+	case <-stop:
+		fmt.Println("получен сигнал остановки.")
 
-	if err := s.GracefulShutdown(); err != nil {
-		fmt.Printf("ошибка при остановке сервера: %v\n", err)
+		if err := GracefulShutdown(); err != nil {
+			fmt.Printf("ошибка при остановке сервера: %v\n", err)
+		}
+	case <-done:
+		return
 	}
 }
