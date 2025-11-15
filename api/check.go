@@ -37,8 +37,8 @@ type ResponseLinks struct {
 	LinksNum int               `json:"links_num"` // номер набора
 }
 
-// checkPostHandler принимает запрос с адресами и синхронно собирает статусы
-func checkPostHandler(w http.ResponseWriter, r *http.Request) {
+// CheckPostHandler принимает запрос с адресами и синхронно собирает статусы
+func CheckPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req RequestLinks
 	var buf bytes.Buffer

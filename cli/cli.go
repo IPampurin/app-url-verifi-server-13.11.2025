@@ -97,7 +97,7 @@ func RunCLI(port string) {
 
 		case "status":
 
-			fmt.Printf("✅ Сервер работает на http://localhost:%s", port)
+			fmt.Printf("✅ Сервер работает на http://localhost:%s\n", port)
 
 		case "help":
 

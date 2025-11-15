@@ -8,7 +8,7 @@ func reportHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
-		reportPostHandler(w, r)
+		ReportPostHandler(w, r)
 
 	default:
 		WriterJSON(w, http.StatusMethodNotAllowed, "Method not allowed")

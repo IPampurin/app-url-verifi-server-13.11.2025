@@ -17,8 +17,8 @@ const timeout = 30 * time.Second // timeout для прерывания соед
 // Server описывает HTTP сервер и его состояние
 type Server struct {
 	httpServer *http.Server // сам сервер
-	mu         sync.RWMutex // мьютекс
-	isShutdown bool         // флаг завершения работы сервера при остановке или перезапуске
+	Mu         sync.RWMutex // мьютекс
+	IsShutdown bool         // флаг завершения работы сервера при остановке или перезапуске
 }
 
 // Srv экземпляр сервера
@@ -28,19 +28,19 @@ var Srv Server = Server{}
 func Run(port string) error {
 
 	// определяем сервер
-	Srv.mu.Lock()
+	Srv.Mu.Lock()
 	if Srv.httpServer != nil {
-		Srv.mu.Unlock()
+		Srv.Mu.Unlock()
 		return fmt.Errorf("сервер уже запущен")
 	}
-	if Srv.isShutdown {
-		Srv.mu.Unlock()
+	if Srv.IsShutdown {
+		Srv.Mu.Unlock()
 		return fmt.Errorf("сервер в процессе остановки и пока не может быть перезапущен")
 	}
 	Srv.httpServer = &http.Server{
 		Addr: fmt.Sprintf(":%s", port),
 	}
-	Srv.mu.Unlock()
+	Srv.Mu.Unlock()
 
 	// запускаем сервер в горутине
 	go func() {
@@ -59,13 +59,13 @@ func Run(port string) error {
 // GracefulShutdown плавно останавливает сервер
 func GracefulShutdown() error {
 
-	Srv.mu.Lock()
-	if Srv.isShutdown {
-		Srv.mu.Unlock()
+	Srv.Mu.Lock()
+	if Srv.IsShutdown {
+		Srv.Mu.Unlock()
 		return nil // уже остановлен или останавливается
 	}
-	Srv.isShutdown = true // устанавливаем флаг
-	Srv.mu.Unlock()
+	Srv.IsShutdown = true // устанавливаем флаг
+	Srv.Mu.Unlock()
 
 	// создаём контекст для принудительного обрыва соединения через разумное время
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -97,10 +97,10 @@ func GracefulShutdown() error {
 // IsShutdown проверяет не останавливается ли сервер
 func IsShutdown() bool {
 
-	Srv.mu.RLock()
-	defer Srv.mu.RUnlock()
+	Srv.Mu.RLock()
+	defer Srv.Mu.RUnlock()
 
-	return Srv.isShutdown
+	return Srv.IsShutdown
 }
 
 // WaitForShutdownSignal ждет сигналов остановки ОС

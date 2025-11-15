@@ -20,8 +20,8 @@ type RequestCollection struct {
 	Links []int `json:"links_list"`
 }
 
-// reportPostHandler обрабатывает POST запрос для генерации PDF отчета
-func reportPostHandler(w http.ResponseWriter, r *http.Request) {
+// ReportPostHandler обрабатывает POST запрос для генерации PDF отчета
+func ReportPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req RequestCollection
 	var buf bytes.Buffer
