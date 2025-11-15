@@ -10,14 +10,20 @@ import (
 	"time"
 
 	"verifi-server/data"
+	"verifi-server/server"
 
 	"github.com/jung-kurt/gofpdf"
 )
 
+// RequestCollection структура запроса от клиента с номерами выполненных запросов
+type RequestCollection struct {
+	Links []int `json:"links_list"`
+}
+
 // reportPostHandler обрабатывает POST запрос для генерации PDF отчета
 func reportPostHandler(w http.ResponseWriter, r *http.Request) {
 
-	var req data.RequestCollection
+	var req RequestCollection
 	var buf bytes.Buffer
 
 	// читаем тело запроса
@@ -37,6 +43,14 @@ func reportPostHandler(w http.ResponseWriter, r *http.Request) {
 	// проверяем на всякий случай
 	if len(req.Links) == 0 {
 		WriterJSON(w, http.StatusBadRequest, "номеров нет")
+		return
+	}
+
+	// если сервер получил команду остановки/перезагрузки
+	// записываем поступающие текущие запросы-ссылки в ShutdownCache
+	// и заканчиваем соединение
+	if server.IsShutdown() {
+		data.SaveLinksCache(req.Links)
 		return
 	}
 
@@ -110,7 +124,7 @@ func generatePDF(reportData map[string]string) ([]byte, error) {
 		pdf.CellFormat(120, 8, displayURL, "1", 0, "L", false, 0, "")
 
 		// status с цветом
-		if status == data.AvailableStatus {
+		if status == AvailableStatus {
 			pdf.SetTextColor(0, 128, 0) // зеленый
 			pdf.CellFormat(0, 8, "Available", "1", 0, "C", false, 0, "")
 		} else {

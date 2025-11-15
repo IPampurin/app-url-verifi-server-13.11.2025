@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"verifi-server/api"
+	"verifi-server/data"
 	"verifi-server/server"
 )
 
@@ -30,7 +32,8 @@ func showHelp(port string) {
 // RunCLI позволяет управлять приложением из консоли
 func RunCLI(port string) {
 
-	done := make(chan struct{}) // канал для остановки WaitForShutdownSignal
+	// канал для остановки WaitForShutdownSignal при остановке сервера
+	done := make(chan struct{})
 
 	// запускаем контроль сигналов ОС
 	go server.WaitForShutdownSignal(done)
@@ -66,9 +69,23 @@ func RunCLI(port string) {
 
 			if err := server.GracefulShutdown(); err != nil {
 				fmt.Printf("Ошибка остановки: %v\n", err)
+
 			} else {
 				fmt.Println("👋 Запускаем сервер.")
-				server.Run(port)
+
+				err := server.Run(port)
+				if err != nil {
+					fmt.Printf("Ошибка запуска сервера: %v\n", err)
+					return
+				}
+
+				// проверяем и дообрабатываем, если остались ссылки после shutdown
+				if len(data.SDCache.CacheLinks) != 0 {
+					for i := range data.SDCache.CacheLinks {
+						api.CacheLinksCheck(data.SDCache.CacheLinks[i])
+					}
+					data.SDCache.CacheLinks = make([][]string, 0)
+				}
 			}
 
 			fmt.Println("✅ Сервер перезапущен")

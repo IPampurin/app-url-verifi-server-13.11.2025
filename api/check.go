@@ -12,10 +12,35 @@ import (
 	"verifi-server/server"
 )
 
+const (
+	// время на запрос клиенту
+	timeoutClient = 3
+	// константы статусов на выдачу
+	AvailableStatus    = "available"
+	NotAvailableStatus = "not available"
+)
+
+// Link описывает структуру обрабатывемой ссылки
+type Link struct {
+	Url    string // адрес
+	Status string // статус ресурса по адресу
+}
+
+// RequestLinks структура запроса от клиента со ссылками
+type RequestLinks struct {
+	Links []string `json:"links"`
+}
+
+// ResponseLinks структура ответа по запросу со ссылками
+type ResponseLinks struct {
+	Links    map[string]string `json:"links"`     // map [{url: status}]
+	LinksNum int               `json:"links_num"` // номер набора
+}
+
 // checkPostHandler принимает запрос с адресами и синхронно собирает статусы
 func checkPostHandler(w http.ResponseWriter, r *http.Request) {
 
-	var req data.RequestLinks
+	var req RequestLinks
 	var buf bytes.Buffer
 
 	// читаем тело запроса
@@ -38,48 +63,71 @@ func checkPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !server.IsShutdown() { // если сервер не останавливают/перезагружают
-
-		// проверяем доступность каждой ссылки
-		statusLinks := make(map[string]string)
-		for _, url := range req.Links {
-			if isAvailable(url) {
-				statusLinks[url] = data.AvailableStatus
-			} else {
-				statusLinks[url] = data.NotAvailableStatus
-			}
-		}
-
-		// сохраняем результаты и получаем номер
-		linksSetNum := data.SaveResults(statusLinks)
-
-		// формируем и возвращаем ответ
-		resp := data.ResponseLinks{
-			Links:    statusLinks,
-			LinksNum: linksSetNum,
-		}
-
-		WriterJSON(w, http.StatusOK, resp)
-
-	} else { // если сервер получил команду остановки/перезагрузки
-
-		// записываем поступающие текущие запросы-ссылки в отдельный storage
-
+	// если сервер получил команду остановки/перезагрузки
+	// записываем поступающие текущие запросы-ссылки в ShutdownCache
+	// и заканчиваем соединение
+	if server.IsShutdown() {
+		data.SaveLinksCache(req.Links)
+		return
 	}
+
+	// если сервер не останавливают/перезагружают
+	// проверяем доступность каждой ссылки
+	statusLinks, linksSetNum := currentLinksCheck(req.Links)
+
+	// формируем и возвращаем ответ
+	resp := ResponseLinks{
+		Links:    statusLinks,
+		LinksNum: linksSetNum,
+	}
+
+	WriterJSON(w, http.StatusOK, resp)
 }
 
-// isAvailable проверяет доступность URL
-func isAvailable(url string) bool {
+// currentLinksCheck асинхронно проверяет доступность по текущему набору ссылок
+func currentLinksCheck(links []string) (map[string]string, int) {
 
-	normalizedURL := normalizeURL(url)
+	statusLinks := make(map[string]string)
+	results := make(chan Link, len(links))
 
-	// поднимаем клиента со временем ожидания 3 секунды
+	// запускаем проверки
+	for _, url := range links {
+		go func(u string) {
+			if IsAvailable(u) {
+				results <- Link{u, AvailableStatus}
+			} else {
+				results <- Link{u, NotAvailableStatus}
+			}
+		}(url)
+	}
+
+	// собираем результаты
+	for i := 0; i < len(links); i++ {
+		res := <-results
+		statusLinks[res.Url] = res.Status
+	}
+
+	// сохраняем результаты и получаем номер
+	linksSetNum := data.SaveResults(statusLinks)
+
+	return statusLinks, linksSetNum
+}
+
+// IsAvailable проверяет доступность URL
+func IsAvailable(url string) bool {
+
+	// добавляем http:// если отсутствует
+	if !strings.Contains(url, "://") {
+		url = "http://" + url
+	}
+
+	// поднимаем клиента со временем ожидания timeoutClient секунд
 	client := http.Client{
-		Timeout: 3 * time.Second,
+		Timeout: timeoutClient * time.Second,
 	}
 
 	// отправляем запрос и читаем ответ
-	resp, err := client.Get(normalizedURL)
+	resp, err := client.Get(url)
 	if err != nil {
 		return false
 	}
@@ -89,11 +137,29 @@ func isAvailable(url string) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
 
-// normalizeURL добавляет http:// если отсутствует
-func normalizeURL(url string) string {
+// CacheLinksCheck асинхронно проверяет доступность по набору ссылок
+func CacheLinksCheck(links []string) {
 
-	if strings.Contains(url, "://") {
-		return url
+	statusLinks := make(map[string]string)
+	results := make(chan Link, len(links))
+
+	// запускаем проверки
+	for _, url := range links {
+		go func(u string) {
+			if IsAvailable(u) {
+				results <- Link{u, AvailableStatus}
+			} else {
+				results <- Link{u, NotAvailableStatus}
+			}
+		}(url)
 	}
-	return "http://" + url
+
+	// собираем результаты
+	for i := 0; i < len(links); i++ {
+		res := <-results
+		statusLinks[res.Url] = res.Status
+	}
+
+	// сохраняем результаты и игнорируем номер
+	_ = data.SaveResults(statusLinks)
 }

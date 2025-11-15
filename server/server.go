@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-
-	"net/http"
 )
 
 const timeout = 30 * time.Second // timeout для прерывания соединения при GracefulShutdown
@@ -36,7 +35,7 @@ func Run(port string) error {
 	}
 	if Srv.isShutdown {
 		Srv.mu.Unlock()
-		return fmt.Errorf("сервер в процессе остановки и не может быть перезапущен")
+		return fmt.Errorf("сервер в процессе остановки и пока не может быть перезапущен")
 	}
 	Srv.httpServer = &http.Server{
 		Addr: fmt.Sprintf(":%s", port),
@@ -74,6 +73,7 @@ func GracefulShutdown() error {
 
 	fmt.Println("Начинаем остановку сервера...")
 
+	// Shutdown "плавно" разрывает соединение по факту отсутствия обращения или через timeout
 	if err := Srv.httpServer.Shutdown(ctx); err != nil {
 
 		switch {
